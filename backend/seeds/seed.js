@@ -31,6 +31,7 @@ async function seed() {
       // Get user IDs
       const users = await client.query('SELECT id, email, role FROM users');
       const admin = users.rows.find(u => u.email === 'admin@lexai.com');
+      const lawyer1 = users.rows.find(u => u.email === 'james@lexai.com');
       const clientUser = users.rows.find(u => u.email === 'client1@lexai.com');
 
       // Clients
@@ -48,15 +49,16 @@ async function seed() {
       const client2 = clients.rows[1];
       const client3 = clients.rows[2];
 
-      // Cases
+      // Cases — assigned to James (lawyer1), created by admin
       const casesResult = await client.query(`
         INSERT INTO cases (title, description, client_id, assigned_lawyer_id, status, priority, case_number, practice_area, court, filing_date, due_date) VALUES
         ('TechCorp Patent Infringement', 'Defense against patent infringement claims related to AI software algorithms. The plaintiff alleges unauthorized use of three patents in our client''s core product.', $1, $2, 'active', 'high', 'CASE-2024-10001', 'Intellectual Property', 'Federal District Court SDNY', '2024-01-15', '2025-06-30'),
         ('Johnson Estate Settlement', 'Probate and estate administration following the passing of Thomas Johnson. Complex multi-state assets including real estate and investment portfolios.', $3, $2, 'pending', 'medium', 'CASE-2024-10002', 'Estate Planning', NULL, '2024-02-20', '2025-03-31'),
         ('Williams Corp Merger', 'Corporate merger between Williams & Associates and Pacific Holdings. Regulatory compliance and due diligence for a $50M transaction.', $4, $2, 'active', 'urgent', 'CASE-2024-10003', 'Corporate Law', NULL, '2024-03-10', '2025-02-28'),
         ('Foster Employment Dispute', 'Wrongful termination claim by former executive. Settlement negotiations with opposing counsel ongoing.', $5, $2, 'open', 'low', 'CASE-2024-10004', 'Employment Law', 'State Superior Court', '2024-04-05', '2025-05-15')
+        ON CONFLICT (case_number) DO UPDATE SET assigned_lawyer_id = EXCLUDED.assigned_lawyer_id
         RETURNING id
-      `, [client1?.id, admin?.id, client2?.id, client3?.id, clients.rows[3]?.id]);
+      `, [client1?.id, lawyer1?.id, client2?.id, client3?.id, clients.rows[3]?.id]);
 
       // Timeline events
       for (const caseRow of casesResult.rows) {
