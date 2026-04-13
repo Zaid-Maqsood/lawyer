@@ -2,17 +2,29 @@ const { Pool } = require('pg');
 
 const schema = process.env.DB_SCHEMA || 'law';
 
+// Production: DigitalOcean injects DATABASE_URL automatically as ${database.<name>.DATABASE_URL}
+// Local: set DATABASE_URL in .env to the full connection string
+// Strip sslmode from the URL — we set ssl explicitly via the config object below
+const connectionString = (process.env.DATABASE_URL || '').replace(/[?&]sslmode=[^&]*/g, '').replace(/[?&]$/, '');
+
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'grayphite',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'zaid',
-  max: 20,
+  connectionString,
+  ssl: { rejectUnauthorized: false },  // required for DO managed databases (self-signed CA)
+  max: 2,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
   options: `-c search_path=${schema}`,
 });
+
+// Local DB (commented out — replaced by DATABASE_URL)
+// const pool = new Pool({
+//   host: 'localhost',
+//   port: 5432,
+//   database: 'grayphite',
+//   user: 'postgres',
+//   password: 'zaid',
+//   options: `-c search_path=${schema}`,
+// });
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
