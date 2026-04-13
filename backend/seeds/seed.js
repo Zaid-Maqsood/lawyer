@@ -44,10 +44,11 @@ async function seed() {
         ON CONFLICT (email) DO NOTHING
       `, [clientUser?.id]);
 
-      const clients = await client.query('SELECT id, name FROM clients');
-      const client1 = clients.rows[0];
-      const client2 = clients.rows[1];
-      const client3 = clients.rows[2];
+      const clients = await client.query('SELECT id, name, email FROM clients ORDER BY created_at ASC');
+      const client1 = clients.rows.find(c => c.email === 'michael.chen@techcorp.com');
+      const client2 = clients.rows.find(c => c.email === 'sarah.j@email.com');
+      const client3 = clients.rows.find(c => c.email === 'rwilliams@bigfirm.com');
+      const client4 = clients.rows.find(c => c.email === 'amanda.f@startup.io');
 
       // Cases — assigned to James (lawyer1), created by admin
       const casesResult = await client.query(`
@@ -58,10 +59,11 @@ async function seed() {
         ('Foster Employment Dispute', 'Wrongful termination claim by former executive. Settlement negotiations with opposing counsel ongoing.', $5, $2, 'open', 'low', 'CASE-2024-10004', 'Employment Law', 'State Superior Court', '2024-04-05', '2025-05-15')
         ON CONFLICT (case_number) DO UPDATE SET assigned_lawyer_id = EXCLUDED.assigned_lawyer_id
         RETURNING id
-      `, [client1?.id, lawyer1?.id, client2?.id, client3?.id, clients.rows[3]?.id]);
+      `, [client1?.id, lawyer1?.id, client2?.id, client3?.id, client4?.id]);
 
-      // Timeline events
+      // Timeline events — delete first to avoid duplicates on re-seed
       for (const caseRow of casesResult.rows) {
+        await client.query(`DELETE FROM case_timeline WHERE case_id = $1`, [caseRow.id]);
         await client.query(`
           INSERT INTO case_timeline (case_id, user_id, event_type, title, description) VALUES
           ($1, $2, 'created', 'Case Opened', 'Case file created and assigned to legal team'),
@@ -78,18 +80,18 @@ async function seed() {
         ON CONFLICT DO NOTHING
       `, [admin?.id]);
 
-      // Time Logs
+      // Time Logs — delete first to avoid duplicates on re-seed
       const caseIds = casesResult.rows.map(r => r.id);
       if (caseIds.length > 0) {
+        await client.query(`DELETE FROM time_logs WHERE case_id = ANY($1)`, [caseIds]);
         await client.query(`
           INSERT INTO time_logs (case_id, user_id, description, hours, hourly_rate, date, is_billed) VALUES
-          ($1, $2, 'Initial case review and document analysis', 3.5, 350, NOW() - INTERVAL '5 days', true),
-          ($1, $2, 'Client consultation and strategy planning', 2.0, 350, NOW() - INTERVAL '3 days', true),
-          ($1, $2, 'Research on patent precedents', 4.0, 350, NOW() - INTERVAL '1 day', false),
-          ($3, $2, 'Estate document review', 2.5, 350, NOW() - INTERVAL '4 days', false),
-          ($3, $2, 'Beneficiary interviews', 1.5, 350, NOW() - INTERVAL '2 days', false)
-          ON CONFLICT DO NOTHING
-        `, [caseIds[0], admin?.id, caseIds[1]]);
+          ($1, $2, 'Initial case review and document analysis', 3.5, 280, NOW() - INTERVAL '5 days', true),
+          ($1, $2, 'Client consultation and strategy planning', 2.0, 280, NOW() - INTERVAL '3 days', true),
+          ($1, $2, 'Research on patent precedents', 4.0, 280, NOW() - INTERVAL '1 day', false),
+          ($3, $2, 'Estate document review', 2.5, 280, NOW() - INTERVAL '4 days', false),
+          ($3, $2, 'Beneficiary interviews', 1.5, 280, NOW() - INTERVAL '2 days', false)
+        `, [caseIds[0], lawyer1?.id, caseIds[1]]);
 
         // Invoices
         await client.query(`
